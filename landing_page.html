@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Open NAS Manager - Gérez vos serveurs NAS depuis votre téléphone</title>
+    <meta name="description" content="Application mobile pour administrer vos serveurs NAS (TrueNAS, Synology, Unraid, QNAP). Monitoring en temps réel, gestion du stockage et contrôle des applications.">
+    <meta name="keywords" content="NAS, TrueNAS, Synology, Unraid, QNAP, mobile, administration, stockage, monitoring">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles pour correspondre exactement au design */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #0F1115;
+            color: white;
+            min-height: 100vh;
+        }
+        
+        .selection\:bg-cyan-500\/30::selection {
+            background-color: rgba(6, 182, 212, 0.3);
+        }
+        
+        .selection\:text-white::selection {
+            color: white;
+        }
+        
+        /* Animations */
+        .fade-in {
+            opacity: 0;
+            transform: translateY(30px);
+            transition: all 0.8s ease-out;
+        }
+        
+        .fade-in.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        
+        .slide-in-left {
+            opacity: 0;
+            transform: translateX(-50px);
+            transition: all 0.8s ease-out;
+        }
+        
+        .slide-in-left.visible {
+            opacity: 1;
+            transform: translateX(0);
+        }
+        
+        .slide-in-right {
+            opacity: 0;
+            transform: translateX(50px);
+            transition: all 0.8s ease-out;
+        }
+        
+        .slide-in-right.visible {
+            opacity: 1;
+            transform: translateX(0);
+        }
+        
+        /* Loading screen */
+        .loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #0F1115;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            transition: opacity 0.5s ease-out;
+        }
+        
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid rgba(30, 122, 243, 0.3);
+            border-top: 3px solid #1E7AF3;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* Carousel styles */
+        .carousel-container {
+            position: relative;
+            overflow: hidden;
+            width: 100%;
+            height: 100%;
+        }
+        
+        .carousel-slide {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            transform: translateX(100%);
+            transition: all 0.5s ease-in-out;
+        }
+        
+        .carousel-slide.active {
+            opacity: 1;
+            transform: translateX(0);
+            z-index: 2;
+        }
+        
+        .carousel-slide.prev {
+            transform: translateX(-100%);
+            z-index: 1;
+        }
+        
+        /* Hover effects */
+        .hover-lift:hover {
+            transform: translateY(-2px);
+            transition: transform 0.3s ease;
+        }
+        
+        .hover-glow:hover {
+            box-shadow: 0 10px 30px rgba(30, 122, 243, 0.3);
+            transition: box-shadow 0.3s ease;
+        }
+        
+        /* Gradient text */
+        .gradient-text {
+            background: linear-gradient(to right, #1E7AF3, #60A5FA, #3AA0FF);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: #1a1a1a;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: #1E7AF3;
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: #3AA0FF;
+        }
+        
+        /* Screen reader only text */
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div id="loadingScreen" class="loading-screen">
+        <div class="loading-spinner"></div>
+    </div>
+
+    <!-- Neon Background -->
+    <div class="fixed inset-0 z-0 pointer-events-none" aria-hidden="true">
+        <div class="absolute inset-0 bg-[radial-gradient(60%_60%_at_50%_0%,rgba(30,122,243,0.08),transparent_60%)]"></div>
+    </div>
+
+    <!-- NavBar -->
+    <header class="sticky top-0 z-20 backdrop-blur supports-[backdrop-filter]:bg-black/30" role="banner">
+        <div class="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
+            <a href="#hero" class="group inline-flex items-center gap-2" aria-label="Open NAS Manager - Retour à l'accueil">
+                <div class="relative">
+                    <span class="absolute inset-0 rounded-xl bg-cyan-500 blur-[10px] opacity-60 group-hover:opacity-90 transition" aria-hidden="true"></span>
+                    <div class="relative grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-[#1E7AF3] to-[#3AA0FF] text-black font-black">
+                        <img src="assets/images/logo open nas manager.png" alt="Logo Open NAS Manager" class="h-6 w-6 object-contain" />
+                    </div>
+                </div>
+                <span class="font-semibold tracking-wide">Open NAS Manager</span>
+            </a>
+            <nav class="hidden items-center gap-6 text-sm/none md:flex" role="navigation" aria-label="Navigation principale">
+                <a href="#features" class="text-white/80 hover:text-white transition-colors" aria-label="Aller à la section Fonctionnalités">Fonctionnalités</a>
+                <a href="#demo" class="text-white/80 hover:text-white transition-colors" aria-label="Aller à la section Démo LIVE">Démo LIVE</a>
+                <a href="#screens" class="text-white/80 hover:text-white transition-colors" aria-label="Aller à la section Captures d'écran">Captures</a>
+                <a href="#roadmap" class="text-white/80 hover:text-white transition-colors" aria-label="Aller à la section Roadmap">Roadmap</a>
+                <a href="#faq" class="text-white/80 hover:text-white transition-colors" aria-label="Aller à la section FAQ">FAQ</a>
+                <a href="#download" class="text-white/80 hover:text-white transition-colors" aria-label="Aller à la section Téléchargement">Télécharger</a>
+            </nav>
+            <div class="flex items-center gap-3">
+                <a href="#download" class="hidden rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm backdrop-blur hover:bg-white/10 md:inline-flex transition-colors">Rejoindre la bêta</a>
+                <a href="#contact" class="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm backdrop-blur hover:bg-white/10 transition-colors" aria-label="Contact">Contact</a>
+            </div>
+        </div>
+    </header>
+
+    <main class="relative z-10">
+        <!-- Hero Section -->
+        <section id="hero" class="relative mx-auto grid max-w-7xl grid-cols-1 items-center gap-12 px-6 pb-16 pt-16 md:grid-cols-2 md:pt-24" role="main" aria-labelledby="hero-title">
+            <div class="fade-in">
+                <h1 id="hero-title" class="text-balance text-4xl font-extrabold tracking-tight md:text-6xl">
+                    Gérez vos <span class="gradient-text">serveurs TrueNAS</span> depuis votre téléphone.
+                </h1>
+                <p class="mt-5 max-w-prose text-white/70">
+                    Une app Flutter pour gérer vos TrueNAS depuis votre mobile. Dashboard temps réel, apps, stockage ZFS, services — le tout depuis votre téléphone.
+                </p>
+                <div class="mt-8 flex flex-wrap items-center gap-3">
+                    <a href="#download" class="group inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-[#1E7AF3] to-[#3AA0FF] px-5 py-3 font-semibold text-black shadow-[0_10px_30px_rgba(0,229,255,0.45)] hover-glow" aria-label="Télécharger l'application APK">
+                        <svg class="h-5 w-5 transition group-hover:translate-y-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                        Télécharger l'APK
+                    </a>
+                    <a href="#features" class="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-5 py-3 font-medium hover:bg-white/10 transition-colors" aria-label="Découvrir les fonctionnalités de l'application">En savoir plus</a>
+                </div>
+                <ul class="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-white/55" role="list" aria-label="Fonctionnalités principales">
+                    <li role="listitem">TrueNAS SCALE & CORE</li>
+                    <li role="listitem">Mobile natif</li>
+                    <li role="listitem">Monitoring temps réel</li>
+                    <li role="listitem">API Keys sécurisées</li>
+                    <li role="listitem">Gestion apps</li>
+                </ul>
+            </div>
+            <div class="slide-in-right">
+                <div class="mx-auto w-full max-w-[360px] md:mx-0">
+                    <div class="relative aspect-[9/19] rounded-[2rem] border border-white/10 bg-[#151922] p-2 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)]">
+                    <div class="absolute inset-2 rounded-[1.6rem] overflow-hidden bg-black">
+                        <img src="imgslanding/dashboard.jpg" alt="Capture d'écran du tableau de bord de l'application Open NAS Manager montrant le monitoring en temps réel" class="h-full w-full object-contain" />
+                    </div>
+                    </div>
+                    <p class="mt-3 text-center text-sm text-white/60">Aperçu réel du Tableau de bord</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Trust Row -->
+        <section class="mx-auto max-w-7xl px-6 pb-6" aria-labelledby="trust-title">
+            <div class="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur">
+                <h2 id="trust-title" class="sr-only">Fonctionnalités principales</h2>
+                <ul class="flex flex-wrap items-center justify-center gap-x-6 gap-y-3 text-xs text-white/60" role="list" aria-label="Fonctionnalités principales de l'application">
+                    <li role="listitem">TrueNAS SCALE & CORE</li>
+                    <li role="listitem">API Keys sécurisées</li>
+                    <li role="listitem">Connexion LAN & WebSocket</li>
+                    <li role="listitem">API TrueNAS REST v2</li>
+                    <li role="listitem">Cache SQLite local</li>
+                    <li role="listitem">Monitoring temps réel</li>
+                </ul>
+                <p class="mt-2 text-center text-[11px] text-white/40">*Application Flutter native pour Android.</p>
+            </div>
+        </section>
+
+        <!-- Features -->
+        <section id="features" class="mx-auto max-w-7xl px-6 py-12" aria-labelledby="features-title">
+            <div class="mb-8 text-center">
+                <h2 id="features-title" class="text-3xl font-bold">Fonctionnalités</h2>
+                <p class="mt-2 text-white/70">Ce que l'app fait concrètement.</p>
+            </div>
+            <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3" role="list" aria-label="Liste des fonctionnalités principales">
+                <div class="group rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur transition hover:-translate-y-0.5 hover:bg-white/10 fade-in" role="listitem">
+                    <div class="mb-2 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#1E7AF3]/20 to-[#3AA0FF]/20 text-cyan-300" aria-hidden="true">
+                        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-semibold">Connexion sécurisée</h3>
+                    <p class="mt-1 text-sm text-white/70">API Keys chiffrées, connexion WebSocket sécurisée, stockage local SQLite.</p>
+                </div>
+                <div class="group rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur transition hover:-translate-y-0.5 hover:bg-white/10 fade-in">
+                    <div class="mb-2 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#1E7AF3]/20 to-[#3AA0FF]/20 text-cyan-300">
+                        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-semibold">Dashboard temps réel</h3>
+                    <p class="mt-1 text-sm text-white/70">CPU, RAM, température, uptime et statistiques réseau en direct.</p>
+                </div>
+                <div class="group rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur transition hover:-translate-y-0.5 hover:bg-white/10 fade-in">
+                    <div class="mb-2 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#1E7AF3]/20 to-[#3AA0FF]/20 text-cyan-300">
+                        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-semibold">Gestion stockage ZFS</h3>
+                    <p class="mt-1 text-sm text-white/70">Pools ZFS, scrubs, capacités, santé des disques et datasets.</p>
+                </div>
+                <div class="group rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur transition hover:-translate-y-0.5 hover:bg-white/10 fade-in">
+                    <div class="mb-2 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#1E7AF3]/20 to-[#3AA0FF]/20 text-cyan-300">
+                        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-semibold">Applications TrueNAS</h3>
+                    <p class="mt-1 text-sm text-white/70">Gérer, démarrer, arrêter et mettre à jour vos applications TrueNAS.</p>
+                </div>
+                <div class="group rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur transition hover:-translate-y-0.5 hover:bg-white/10 fade-in">
+                    <div class="mb-2 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#1E7AF3]/20 to-[#3AA0FF]/20 text-cyan-300">
+                        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-semibold">Interface WebView</h3>
+                    <p class="mt-1 text-sm text-white/70">Accès direct aux interfaces web des applications dans l'app.</p>
+                </div>
+                <div class="group rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur transition hover:-translate-y-0.5 hover:bg-white/10 fade-in">
+                    <div class="mb-2 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#1E7AF3]/20 to-[#3AA0FF]/20 text-cyan-300">
+                        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-semibold">Interface sombre</h3>
+                    <p class="mt-1 text-sm text-white/70">Material Design sombre, adapté pour une utilisation prolongée.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Live Demo -->
+        <section id="demo" class="mx-auto max-w-7xl px-6 py-12" aria-labelledby="demo-title">
+            <div class="mb-6 text-center">
+                <h2 id="demo-title" class="text-3xl font-bold">Aperçu</h2>
+                <p class="mt-2 text-white/70">Quelques écrans de l'app en action.</p>
+            </div>
+            <div class="flex justify-center">
+                <div class="grid grid-cols-1 gap-4 md:grid-cols-3 max-w-2xl" role="list" aria-label="Aperçus des écrans principaux">
+                    <figure class="rounded-xl border border-white/10 bg-white/5 p-2 hover-lift" role="listitem">
+                        <img src="imgslanding/dashboard.jpg" alt="Capture d'écran du tableau de bord montrant le monitoring en temps réel" class="aspect-[9/16] w-full rounded-lg object-contain max-h-64" />
+                        <figcaption class="mt-2 text-center text-sm text-white/70">Dashboard</figcaption>
+                    </figure>
+                    <figure class="rounded-xl border border-white/10 bg-white/5 p-2 hover-lift" role="listitem">
+                        <img src="imgslanding/storage 1.jpg" alt="Capture d'écran de la gestion du stockage avec les pools ZFS" class="aspect-[9/16] w-full rounded-lg object-contain max-h-64" />
+                        <figcaption class="mt-2 text-center text-sm text-white/70">Stockage</figcaption>
+                    </figure>
+                    <figure class="rounded-xl border border-white/10 bg-white/5 p-2 hover-lift" role="listitem">
+                        <img src="imgslanding/installed apps.jpg" alt="Capture d'écran des applications installées avec contrôles" class="aspect-[9/16] w-full rounded-lg object-contain max-h-64" />
+                        <figcaption class="mt-2 text-center text-sm text-white/70">Applications</figcaption>
+                    </figure>
+                </div>
+            </div>
+        </section>
+
+        <!-- Screenshots Carousel -->
+        <section id="screens" class="mx-auto max-w-7xl px-6 py-12" aria-labelledby="screens-title">
+            <div class="mb-6 text-center">
+                <h2 id="screens-title" class="text-3xl font-bold">Captures d'écran</h2>
+                <p class="mt-2 text-white/70">Les écrans principaux de l'app.</p>
+            </div>
+
+            <div class="relative mx-auto w-full max-w-sm md:max-w-md">
+                <div class="overflow-hidden rounded-2xl border border-white/10 bg-white/5 backdrop-blur" 
+                     onmouseenter="pauseCarousel()" 
+                     onmouseleave="resumeCarousel()">
+                    <div class="relative aspect-[9/16] w-full carousel-container">
+                        <div class="carousel-slide active" role="img" aria-label="Page d'accueil pour ajouter un serveur NAS">
+                            <img src="imgslanding/home page.jpg" alt="Page d'accueil de l'application Open NAS Manager montrant les options pour ajouter un serveur" class="h-full w-full object-contain" />
+                        </div>
+                        <div class="carousel-slide" role="img" aria-label="Interface de connexion TrueNAS">
+                            <img src="imgslanding/server add.jpg" alt="Interface de connexion pour configurer un serveur TrueNAS" class="h-full w-full object-contain" />
+                        </div>
+                        <div class="carousel-slide" role="img" aria-label="Liste des serveurs configurés">
+                            <img src="imgslanding/server list.jpg" alt="Liste des serveurs NAS configurés dans l'application" class="h-full w-full object-contain" />
+                        </div>
+                        <div class="carousel-slide" role="img" aria-label="Dashboard de monitoring temps réel">
+                            <img src="imgslanding/dashboard.jpg" alt="Dashboard de monitoring en temps réel avec CPU, RAM et statistiques" class="h-full w-full object-contain" />
+                        </div>
+                        <div class="carousel-slide" role="img" aria-label="Applications installées">
+                            <img src="imgslanding/installed apps.jpg" alt="Liste des applications installées avec contrôles de gestion" class="h-full w-full object-contain" />
+                        </div>
+                        <div class="carousel-slide" role="img" aria-label="Gestion du stockage AYOFINAL">
+                            <img src="imgslanding/storage 1.jpg" alt="Interface de gestion du stockage pour le serveur AYOFINAL" class="h-full w-full object-contain" />
+                        </div>
+                        <div class="carousel-slide" role="img" aria-label="Gestion du stockage MEDIA2">
+                            <img src="imgslanding/storage 2.jpg" alt="Interface de gestion du stockage pour le pool MEDIA2" class="h-full w-full object-contain" />
+                        </div>
+                        <div class="carousel-slide" role="img" aria-label="Gestion du stockage MEDIA3">
+                            <img src="imgslanding/storage 3.jpg" alt="Interface de gestion du stockage pour le pool MEDIA3" class="h-full w-full object-contain" />
+                        </div>
+                        <div class="carousel-slide" role="img" aria-label="Services système">
+                            <img src="imgslanding/services.jpg" alt="Interface de gestion des services système (SMB, NFS, SSH, etc.)" class="h-full w-full object-contain" />
+                        </div>
+                        <div class="carousel-slide" role="img" aria-label="Menu hamburger">
+                            <img src="imgslanding/hamburger.jpg" alt="Menu hamburger de l'application avec navigation" class="h-full w-full object-contain" />
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between p-4 text-sm">
+                        <div>
+                            <h3 class="font-semibold" id="carousel-title">Accueil — Ajouter un serveur</h3>
+                            <p class="text-white/70" id="carousel-caption">Ajoutez vos serveurs TrueNAS</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button onclick="prevSlide()" class="rounded-xl border border-white/10 bg-white/5 px-3 py-2 hover:bg-white/10 transition-colors" aria-label="Image précédente">‹</button>
+                            <button onclick="nextSlide()" class="rounded-xl border border-white/10 bg-white/5 px-3 py-2 hover:bg-white/10 transition-colors" aria-label="Image suivante">›</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-3 flex justify-center gap-1" id="carousel-dots" role="tablist" aria-label="Navigation des captures d'écran">
+                    <!-- Dots will be generated by JavaScript -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Newsletter -->
+        <section id="newsletter" class="mx-auto max-w-3xl px-6 py-12">
+            <div class="rounded-2xl border border-white/10 bg-white/5 p-6 text-center backdrop-blur">
+                <h2 class="text-3xl font-bold">Restez informé</h2>
+                <p class="mt-2 text-white/70">Notifications pour les nouvelles versions.</p>
+                <form class="mx-auto mt-5 flex max-w-md items-center gap-2" onsubmit="handleNewsletter(event)">
+                    <input required type="email" placeholder="votre@email.com" class="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm outline-none placeholder:text-white/40" />
+                    <button class="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#1E7AF3] to-[#3AA0FF] px-4 py-3 text-sm font-semibold text-black hover-glow">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                        </svg>
+                        S'abonner
+                    </button>
+                </form>
+            </div>
+        </section>
+
+        <!-- Roadmap -->
+        <section id="roadmap" class="mx-auto max-w-7xl px-6 py-12">
+            <div class="mb-6 text-center">
+                <h2 class="text-3xl font-bold">Roadmap</h2>
+                <p class="mt-2 text-white/70">Ce qui est prévu pour la suite.</p>
+            </div>
+            <ul class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <li class="rounded-2xl border border-white/10 bg-white/5 p-5 hover-lift">
+                    <div class="flex items-center justify-between">
+                        <span class="font-medium">Support Synology DSM</span>
+                        <span class="rounded-full border border-white/10 bg-white/10 px-2 py-1 text-xs text-white/70">En cours</span>
+                    </div>
+                </li>
+                <li class="rounded-2xl border border-white/10 bg-white/5 p-5 hover-lift">
+                    <div class="flex items-center justify-between">
+                        <span class="font-medium">Support Unraid</span>
+                        <span class="rounded-full border border-white/10 bg-white/10 px-2 py-1 text-xs text-white/70">Prévu v1.2</span>
+                    </div>
+                </li>
+                <li class="rounded-2xl border border-white/10 bg-white/5 p-5 hover-lift">
+                    <div class="flex items-center justify-between">
+                        <span class="font-medium">Support QNAP QTS/QuTS</span>
+                        <span class="rounded-full border border-white/10 bg-white/10 px-2 py-1 text-xs text-white/70">Prévu v1.3</span>
+                    </div>
+                </li>
+                <li class="rounded-2xl border border-white/10 bg-white/5 p-5 hover-lift">
+                    <div class="flex items-center justify-between">
+                        <span class="font-medium">Support OpenMediaVault</span>
+                        <span class="rounded-full border border-white/10 bg-white/10 px-2 py-1 text-xs text-white/70">Prévu v1.4</span>
+                    </div>
+                </li>
+                <li class="rounded-2xl border border-white/10 bg-white/5 p-5 hover-lift">
+                    <div class="flex items-center justify-between">
+                        <span class="font-medium">Widgets & notifications push</span>
+                        <span class="rounded-full border border-white/10 bg-white/10 px-2 py-1 text-xs text-white/70">À étudier</span>
+                    </div>
+                </li>
+            </ul>
+        </section>
+
+        <!-- FAQ -->
+        <section id="faq" class="mx-auto max-w-3xl px-6 py-12">
+            <h2 class="text-center text-3xl font-bold">FAQ</h2>
+            <div class="mt-6 divide-y divide-white/10 rounded-2xl border border-white/10 bg-white/5 backdrop-blur">
+                <div class="px-5 py-4">
+                    <button onclick="toggleFAQ(this)" class="flex w-full items-center justify-between text-left">
+                        <span class="text-sm font-semibold">Est-ce open-source ?</span>
+                        <span class="transition">+</span>
+                    </button>
+                    <div class="grid transition-all duration-300 grid-rows-[0fr] opacity-70">
+                        <div class="overflow-hidden text-sm text-white/70"><p class="pt-3">Non, c'est un projet propriétaire. Le code n'est pas public. Une version payante pourrait venir plus tard.</p></div>
+                    </div>
+                </div>
+                <div class="px-5 py-4">
+                    <button onclick="toggleFAQ(this)" class="flex w-full items-center justify-between text-left">
+                        <span class="text-sm font-semibold">iOS est-il prévu ?</span>
+                        <span class="transition">+</span>
+                    </button>
+                    <div class="grid transition-all duration-300 grid-rows-[0fr] opacity-70">
+                        <div class="overflow-hidden text-sm text-white/70"><p class="pt-3">L'app est Android-first. Un port iOS est envisagé après la v1 stable.</p></div>
+                    </div>
+                </div>
+                <div class="px-5 py-4">
+                    <button onclick="toggleFAQ(this)" class="flex w-full items-center justify-between text-left">
+                        <span class="text-sm font-semibold">Quels services puis-je contrôler ?</span>
+                        <span class="transition">+</span>
+                    </button>
+                    <div class="grid transition-all duration-300 grid-rows-[0fr] opacity-70">
+                        <div class="overflow-hidden text-sm text-white/70"><p class="pt-3">SMB, NFS, SSH, FTP, iSCSI selon la plateforme. L'offre varie entre TrueNAS, Synology, Unraid, QNAP.</p></div>
+                    </div>
+                </div>
+                <div class="px-5 py-4">
+                    <button onclick="toggleFAQ(this)" class="flex w-full items-center justify-between text-left">
+                        <span class="text-sm font-semibold">Fonctionne-t-elle hors-ligne ?</span>
+                        <span class="transition">+</span>
+                    </button>
+                    <div class="grid transition-all duration-300 grid-rows-[0fr] opacity-70">
+                        <div class="overflow-hidden text-sm text-white/70"><p class="pt-3">Les données récentes sont mises en cache (SQLite) et resynchronisées au retour en ligne.</p></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- CTA -->
+        <section id="download" class="mx-auto max-w-5xl px-6 py-16 text-center">
+            <div class="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-[#1E7AF3]/20 to-[#3AA0FF]/20 p-8">
+                <div class="mx-auto max-w-2xl">
+                    <h2 class="text-3xl font-bold">Télécharger l'app</h2>
+                    <p class="mt-2 text-white/80">Version bêta disponible en téléchargement direct.</p>
+                    <div class="mt-6 flex flex-wrap items-center justify-center gap-3">
+                        <a class="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-[#1E7AF3] to-[#3AA0FF] px-5 py-3 font-semibold text-black hover-glow" href="#apk">Télécharger l'APK</a>
+                        <a class="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-5 py-3 hover:bg-white/10 transition-colors" href="#contact">
+                            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                            </svg>
+                            Contact
+                        </a>
+                    </div>
+                    <p class="mt-3 text-xs text-white/70">Android 9+ recommandé • Utilisation à vos risques sur appareils rootés 😉</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="relative z-10 border-t border-white/10 bg-black/40">
+        <div class="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-6 py-8 md:flex-row">
+            <p class="text-xs text-white/60">© 2025 Open NAS Manager — Tous droits réservés. Développé par Ivane Bagashvili.</p>
+            <div class="flex items-center gap-4 text-xs text-white/60">
+                <a href="#privacy" class="hover:text-white transition-colors">Confidentialité</a>
+                <a href="#terms" class="hover:text-white transition-colors">Mentions légales</a>
+                <a href="#contact" class="hover:text-white transition-colors">Contact</a>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Carousel simple et robuste
+        let currentSlide = 0;
+        let totalSlides = 0;
+        let autoPlayInterval = null;
+
+        const carouselData = [
+            { title: "Accueil — Ajouter un serveur", caption: "Ajoutez vos serveurs TrueNAS" },
+            { title: "Connexion TrueNAS", caption: "Config avec API Key" },
+            { title: "Accueil — Serveur configuré", caption: "Liste de vos serveurs" },
+            { title: "Dashboard temps réel", caption: "CPU, RAM, température, réseau en direct" },
+            { title: "Applications installées", caption: "Gérer vos apps : démarrer, arrêter, mettre à jour" },
+            { title: "Stockage — AYOFINAL", caption: "Pools ZFS, scrubs, capacités" },
+            { title: "Stockage — MEDIA2", caption: "Pool MEDIA2 avec stats" },
+            { title: "Stockage — MEDIA3", caption: "Pool MEDIA3 et datasets" },
+            { title: "Services système", caption: "SMB, NFS, SSH, FTP, iSCSI" },
+            { title: "Menu hamburger", caption: "Navigation de l'app" }
+        ];
+
+        function initCarousel() {
+            const slides = document.querySelectorAll('.carousel-slide');
+            const dotsContainer = document.getElementById('carousel-dots');
+            
+            totalSlides = slides.length;
+            currentSlide = 0;
+            
+            if (totalSlides === 0) {
+                console.warn('Aucune slide trouvée');
+                return;
+            }
+            
+            // Activer la première slide
+            slides.forEach((slide, index) => {
+                slide.classList.remove('active', 'prev');
+                if (index === 0) {
+                    slide.classList.add('active');
+                }
+            });
+            
+            // Créer les dots
+            dotsContainer.innerHTML = '';
+            for (let i = 0; i < totalSlides; i++) {
+                const dot = document.createElement('button');
+                dot.className = `h-2 w-2 cursor-pointer rounded-full transition-colors ${i === 0 ? 'bg-gradient-to-r from-[#1E7AF3] to-[#3AA0FF]' : 'bg-white/20'}`;
+                dot.setAttribute('aria-label', `Aller à l'image ${i + 1}`);
+                dot.onclick = () => goToSlide(i);
+                dotsContainer.appendChild(dot);
+            }
+            
+            // Mettre à jour le titre
+            updateTitle();
+            
+            // Démarrer l'auto-play
+            startAutoPlay();
+        }
+
+        function goToSlide(index) {
+            if (index < 0 || index >= totalSlides) return;
+            
+            const slides = document.querySelectorAll('.carousel-slide');
+            const dots = document.querySelectorAll('#carousel-dots button');
+            
+            // Désactiver toutes les slides
+            slides.forEach(slide => slide.classList.remove('active', 'prev'));
+            dots.forEach(dot => {
+                dot.className = 'h-2 w-2 cursor-pointer rounded-full transition-colors bg-white/20';
+            });
+            
+            // Activer la nouvelle slide
+            currentSlide = index;
+            if (slides[currentSlide]) {
+                slides[currentSlide].classList.add('active');
+            }
+            if (dots[currentSlide]) {
+                dots[currentSlide].className = 'h-2 w-2 cursor-pointer rounded-full transition-colors bg-gradient-to-r from-[#1E7AF3] to-[#3AA0FF]';
+            }
+            
+            updateTitle();
+            restartAutoPlay();
+        }
+
+        function nextSlide() {
+            const next = (currentSlide + 1) % totalSlides;
+            goToSlide(next);
+        }
+
+        function prevSlide() {
+            const prev = (currentSlide - 1 + totalSlides) % totalSlides;
+            goToSlide(prev);
+        }
+
+        function updateTitle() {
+            const titleEl = document.getElementById('carousel-title');
+            const captionEl = document.getElementById('carousel-caption');
+            
+            if (carouselData[currentSlide]) {
+                if (titleEl) titleEl.textContent = carouselData[currentSlide].title;
+                if (captionEl) captionEl.textContent = carouselData[currentSlide].caption;
+            }
+        }
+
+        function startAutoPlay() {
+            if (autoPlayInterval) clearInterval(autoPlayInterval);
+            autoPlayInterval = setInterval(nextSlide, 3500);
+        }
+
+        function stopAutoPlay() {
+            if (autoPlayInterval) {
+                clearInterval(autoPlayInterval);
+                autoPlayInterval = null;
+            }
+        }
+
+        function restartAutoPlay() {
+            stopAutoPlay();
+            startAutoPlay();
+        }
+
+        function pauseCarousel() {
+            stopAutoPlay();
+        }
+
+        function resumeCarousel() {
+            startAutoPlay();
+        }
+
+        // FAQ functionality
+        function toggleFAQ(button) {
+            const content = button.nextElementSibling;
+            const icon = button.querySelector('span:last-child');
+            
+            if (content.classList.contains('grid-rows-[0fr]')) {
+                content.classList.remove('grid-rows-[0fr]', 'opacity-70');
+                content.classList.add('grid-rows-[1fr]', 'opacity-100');
+                icon.style.transform = 'rotate(45deg)';
+            } else {
+                content.classList.remove('grid-rows-[1fr]', 'opacity-100');
+                content.classList.add('grid-rows-[0fr]', 'opacity-70');
+                icon.style.transform = 'rotate(0deg)';
+            }
+        }
+
+        // Newsletter form
+        function handleNewsletter(event) {
+            event.preventDefault();
+            alert('Merci ! Vous serez notifié des prochaines versions.');
+        }
+
+        // Smooth scrolling for navigation links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+
+        // Intersection Observer for animations
+        const observerOptions = {
+            threshold: 0.1,
+            rootMargin: '0px 0px -50px 0px'
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                }
+            });
+        }, observerOptions);
+
+        // Observe all animated elements
+        document.querySelectorAll('.fade-in, .slide-in-left, .slide-in-right').forEach(el => {
+            observer.observe(el);
+        });
+
+        // Loading screen
+        window.addEventListener('load', function() {
+            const loadingScreen = document.getElementById('loadingScreen');
+            setTimeout(() => {
+                loadingScreen.style.opacity = '0';
+                setTimeout(() => {
+                    loadingScreen.remove();
+                }, 500);
+            }, 1000);
+        });
+
+        // Image error handling
+        function handleImageError(img) {
+            img.style.display = 'none';
+            const container = img.closest('.carousel-slide');
+            if (container) {
+                container.innerHTML = '<div class="h-full w-full flex items-center justify-center bg-gray-800 text-white">Image non disponible</div>';
+            }
+        }
+
+        // Add error handlers to all images
+        document.addEventListener('DOMContentLoaded', function() {
+            initCarousel();
+            
+            // Add error handlers to carousel images
+            const carouselImages = document.querySelectorAll('.carousel-slide img');
+            carouselImages.forEach(img => {
+                img.addEventListener('error', () => handleImageError(img));
+            });
+            
+            // Add error handlers to demo images
+            const demoImages = document.querySelectorAll('#demo img');
+            demoImages.forEach(img => {
+                img.addEventListener('error', () => {
+                    img.style.display = 'none';
+                    const figure = img.closest('figure');
+                    if (figure) {
+                        figure.innerHTML = '<div class="aspect-[9/19] w-full rounded-xl bg-gray-800 flex items-center justify-center text-white">Image non disponible</div><figcaption class="mt-2 text-center text-sm text-white/70">Image non disponible</figcaption>';
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>
+
